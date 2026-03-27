@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Aquarium Compatibility Showcase
 
-## Getting Started
+Interactive Next.js showcase for an ICT206 rule-based expert system that evaluates freshwater aquarium fish compatibility.
 
-First, run the development server:
+The site includes:
+
+- a live tank builder
+- preset validation scenarios
+- a searchable fish knowledge base
+- explainable pairwise scoring and tank warnings
+
+## Stack
+
+- Next.js 16
+- TypeScript
+- Tailwind CSS v4
+- shadcn/ui
+- Static export for GitHub Pages
+
+## Local Development
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Production Build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+```
 
-## Learn More
+The app uses `output: "export"` in [`next.config.ts`](./next.config.ts), so a static site is written to `out/`.
 
-To learn more about Next.js, take a look at the following resources:
+## GitHub Pages
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+This repo includes [`deploy-pages.yml`](./.github/workflows/deploy-pages.yml), which uses the current GitHub Pages Actions flow:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Push the repo to GitHub on the `main` branch.
+2. In the repository settings, set Pages to use GitHub Actions as the source.
+3. The workflow will build the app and publish the `out/` folder automatically.
 
-## Deploy on Vercel
+The app derives `basePath` and `assetPrefix` from `GITHUB_REPOSITORY`, so it works for standard project-page URLs like:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+`https://username.github.io/repository-name/`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Notes
+
+- The charts in `public/` were copied from the original project artifacts so the deployed site can show the report validation visuals.
+- A `.nojekyll` file is included to avoid underscore-folder issues on GitHub Pages.
