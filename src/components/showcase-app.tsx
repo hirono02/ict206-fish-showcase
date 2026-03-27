@@ -1,1050 +1,791 @@
 "use client";
 
-import Image from "next/image";
-import { startTransition, useDeferredValue, useState, type ReactNode } from "react";
-import {
-  AlertCircle,
-  ArrowRight,
-  BarChart3,
-  BookOpen,
-  Database,
-  Fish,
-  FlaskConical,
-  Gauge,
-  Plus,
-  Search,
-  ShieldCheck,
-  Thermometer,
-  Trash2,
-  TriangleAlert,
-  Waves,
-} from "lucide-react";
+/* eslint-disable @next/next/no-img-element */
 
-import { Badge } from "@/components/ui/badge";
+/*
+ * Home Page – Fish Compatibility Expert System
+ * Design: "Field Guide" warm editorial / handbook style
+ * - Lora serif headings, Nunito Sans body, DM Mono for data
+ * - Warm cream bg, forest green primary, burnt sienna warnings
+ * - Single-column editorial flow with guided steps
+ * - Species cards with fish images and search/filter bar
+ */
+
+import { useState, useMemo, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fishDatabase, fishOptions, type FishId } from "@/lib/fish-data";
 import {
-  evaluateTank,
-  type OverallVerdict,
-  type StockingEntry,
-  type TankSetup,
-} from "@/lib/compatibility";
-import { presetScenarios } from "@/lib/preset-scenarios";
+  Fish,
+  Droplets,
+  Thermometer,
+  FlaskConical,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Minus,
+  Info,
+  ArrowRight,
+  Waves,
+  Search,
+} from "lucide-react";
+import { FISH_DATABASE, getCategories, type FishSpecies } from "@/lib/fishData";
+import { evaluateTank, type CompatibilityReport, type PairResult, type TankWarning } from "@/lib/expertEngine";
+import { getFishImage } from "@/lib/fishImages";
 
-type ActiveTab = "lab" | "presets" | "atlas";
+// Image URLs
+const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/117166162/gMtsz9xfzbMJD2GxerqqUC/hero-aquarium-W8xrXgqdREY4LuSJnpe9JG.webp";
+const DIVIDER_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/117166162/gMtsz9xfzbMJD2GxerqqUC/results-divider-KVFuRKkS75MC46jfzyycFg.webp";
 
-const defaultTank: TankSetup = {
-  tankLitres: 100,
-  ph: 7,
-  tempC: 25,
-};
-
-const defaultStocking: StockingEntry[] = [
-  { fishId: "neon_tetra", quantity: 8 },
-  { fishId: "corydoras", quantity: 6 },
-];
-
-const categoryBadgeClass: Record<(typeof presetScenarios)[number]["category"], string> = {
-  compatible: "border-emerald-300 bg-emerald-100 text-emerald-800",
-  incompatible: "border-rose-300 bg-rose-100 text-rose-800",
-  borderline: "border-amber-300 bg-amber-100 text-amber-800",
-  edge: "border-sky-300 bg-sky-100 text-sky-800",
-};
-
-const verdictCopy: Record<
-  Exclude<OverallVerdict, "pending">,
-  { label: string; className: string; summary: string }
-> = {
-  recommended: {
-    label: "Recommended",
-    className: "border-emerald-300 bg-emerald-100 text-emerald-800",
-    summary:
-      "The selected fish community is compatible based on water parameter overlap, temperament compatibility, size-ratio checks, behavioural rules, and tank constraints.",
-  },
-  caution: {
-    label: "Compatible with cautions",
-    className: "border-amber-300 bg-amber-100 text-amber-800",
-    summary:
-      "The fish can coexist, but the system has issued setup warnings regarding tank conditions or schooling requirements that should be addressed.",
-  },
-  reconsider: {
-    label: "High risk mix",
-    className: "border-rose-300 bg-rose-100 text-rose-800",
-    summary:
-      "At least one pairing falls below the compatibility threshold, so the stocking combination should be reconsidered before setup.",
-  },
-};
-
-const ruleHighlights = [
-  {
-    title: "Water Parameter Overlap",
-    body: "We calculate the overlap of tolerable pH and temperature ranges between a pair of fish. No overlap causes a heavy penalty because the fish cannot exist in the same water conditions.",
-  },
-  {
-    title: "Temperament Compatibility",
-    body: "The system penalises combinations of peaceful, semi-aggressive, and aggressive species depending on the likelihood of stress, bullying, or attack.",
-  },
-  {
-    title: "Size Ratio (Predation/Bully Risk)",
-    body: "We calculate the ratio of the larger fish’s maximum adult size to the smaller fish’s maximum adult size. Large gaps trigger penalties for predation, stress, or nipping risk.",
-  },
-  {
-    title: "Special Domain Rules",
-    body: "Specific behavioural patterns derived from expert knowledge, such as Betta aggression, Tiger Barb fin-nipping, and Angelfish predation on very small fish, are encoded as targeted rules.",
-  },
-  {
-    title: "Tank Constraints",
-    body: "Tank volume, water pH, water temperature, and schooling requirements are checked separately so the system can warn about poor setups even when the fish pairing itself is compatible.",
-  },
-];
-
-function formatSpeciesList(stocking: StockingEntry[]) {
-  return stocking
-    .map((entry) => `${fishDatabase[entry.fishId].name} x${entry.quantity}`)
-    .join(", ");
+function getSliderValue(value: number | readonly number[]) {
+  return Array.isArray(value) ? (value[0] ?? 0) : value;
 }
 
-function ShowcaseMetric({
-  title,
-  value,
-  detail,
-}: {
-  title: string;
-  value: string;
-  detail: string;
-}) {
+// ─── Sub-components ───
+
+function ScoreGauge({ score, size = 80 }: { score: number; size?: number }) {
+  const radius = (size - 8) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = (score / 100) * circumference;
+  const color = score >= 75 ? "#2d6a4f" : score >= 50 ? "#b8860b" : "#c45b28";
+
   return (
-    <div className="rounded-3xl border border-white/50 bg-white/70 p-4 shadow-sm backdrop-blur">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{title}</p>
-      <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{detail}</p>
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#e8e0d4" strokeWidth={4} />
+        <circle
+          cx={size / 2} cy={size / 2} r={radius} fill="none"
+          stroke={color} strokeWidth={4}
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference - progress}
+          strokeLinecap="round"
+          className="transition-all duration-700 ease-out"
+        />
+      </svg>
+      <span className="absolute font-mono text-sm font-medium" style={{ color }}>
+        {score}
+      </span>
     </div>
   );
 }
 
-function TankSlider({
-  label,
-  icon,
-  value,
-  min,
-  max,
-  step,
-  suffix,
-  description,
-  onChange,
+function FishCard({
+  fish,
+  selected,
+  quantity,
+  onToggle,
+  onQuantityChange,
 }: {
-  label: string;
-  icon: ReactNode;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  suffix: string;
-  description: string;
-  onChange: (nextValue: number) => void;
+  fish: FishSpecies;
+  selected: boolean;
+  quantity: number;
+  onToggle: () => void;
+  onQuantityChange: (q: number) => void;
 }) {
-  return (
-    <div className="space-y-3 rounded-3xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <span className="inline-flex size-8 items-center justify-center rounded-full bg-sky-100 text-sky-700">
-            {icon}
-          </span>
-          {label}
-        </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
-          {value}
-          {suffix}
-        </span>
-      </div>
-      <Slider
-        min={min}
-        max={max}
-        step={step}
-        value={[value]}
-        onValueChange={(nextValue) =>
-          onChange(Array.isArray(nextValue) ? (nextValue[0] ?? value) : nextValue)
-        }
-      />
-      <p className="text-sm leading-6 text-slate-500">{description}</p>
-    </div>
-  );
-}
-
-export function ShowcaseApp() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("lab");
-  const [tank, setTank] = useState<TankSetup>(defaultTank);
-  const [stocking, setStocking] = useState<StockingEntry[]>(defaultStocking);
-  const [pendingFishId, setPendingFishId] = useState<FishId | "">("");
-  const [pendingQuantity, setPendingQuantity] = useState("6");
-  const [atlasSearch, setAtlasSearch] = useState("");
-
-  const deferredSearch = useDeferredValue(atlasSearch);
-  const evaluation = evaluateTank(tank, stocking);
-  const selectedIds = new Set(stocking.map((entry) => entry.fishId));
-  const filteredFish = fishOptions.filter((fish) => {
-    const query = deferredSearch.trim().toLowerCase();
-    if (!query) {
-      return true;
-    }
-
-    return (
-      fish.name.toLowerCase().includes(query) ||
-      fish.scientificName.toLowerCase().includes(query) ||
-      fish.speciesGroup.toLowerCase().includes(query) ||
-      fish.temperament.toLowerCase().includes(query)
-    );
-  });
-
-  function updateTank<Key extends keyof TankSetup>(key: Key, value: TankSetup[Key]) {
-    setTank((currentTank) => ({
-      ...currentTank,
-      [key]: value,
-    }));
-  }
-
-  function addFish(nextFishId: FishId, quantity: number) {
-    setStocking((currentStocking) => {
-      const existing = currentStocking.find((entry) => entry.fishId === nextFishId);
-
-      if (existing) {
-        return currentStocking.map((entry) =>
-          entry.fishId === nextFishId
-            ? { ...entry, quantity: Math.max(1, entry.quantity + quantity) }
-            : entry,
-        );
-      }
-
-      return [...currentStocking, { fishId: nextFishId, quantity: Math.max(1, quantity) }];
-    });
-  }
-
-  function handleAddPendingFish() {
-    if (!pendingFishId) {
-      return;
-    }
-
-    const safeQuantity = Number.parseInt(pendingQuantity, 10);
-    addFish(pendingFishId, Number.isNaN(safeQuantity) ? 1 : safeQuantity);
-    setPendingFishId("");
-    setPendingQuantity("6");
-  }
-
-  function updateQuantity(fishId: FishId, quantity: number) {
-    setStocking((currentStocking) =>
-      currentStocking.map((entry) =>
-        entry.fishId === fishId ? { ...entry, quantity: Math.max(1, quantity) } : entry,
-      ),
-    );
-  }
-
-  function removeFish(fishId: FishId) {
-    setStocking((currentStocking) => currentStocking.filter((entry) => entry.fishId !== fishId));
-  }
-
-  function applyPreset(presetId: number) {
-    const preset = presetScenarios.find((candidate) => candidate.id === presetId);
-    if (!preset) {
-      return;
-    }
-
-    startTransition(() => {
-      setTank({
-        tankLitres: preset.tankLitres,
-        ph: preset.ph,
-        tempC: preset.tempC,
-      });
-      setStocking(preset.fish);
-      setActiveTab("lab");
-    });
-  }
-
-  const verdictDetails =
-    evaluation.overallVerdict === "pending" ? null : verdictCopy[evaluation.overallVerdict];
+  const [expanded, setExpanded] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const imgUrl = getFishImage(fish.id);
+  const tempBadge = fish.temperament === "peaceful" ? "bg-[#2d6a4f]/10 text-[#2d6a4f]"
+    : fish.temperament === "semi-aggressive" ? "bg-[#b8860b]/10 text-[#b8860b]"
+    : "bg-[#c45b28]/10 text-[#c45b28]";
 
   return (
-    <div className="relative overflow-hidden">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[42rem] bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.24),_transparent_38%),radial-gradient(circle_at_top_right,_rgba(20,184,166,0.18),_transparent_26%),linear-gradient(180deg,_rgba(241,245,249,0.95),_rgba(248,250,252,0.72),_transparent)]" />
-      <div className="pointer-events-none absolute left-10 top-24 size-64 rounded-full bg-cyan-300/15 blur-3xl" />
-      <div className="pointer-events-none absolute right-0 top-56 size-80 rounded-full bg-teal-300/15 blur-3xl" />
-
-      <main className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
-        <section className="overflow-hidden rounded-[2rem] border border-white/60 bg-white/75 shadow-[0_24px_80px_-24px_rgba(15,23,42,0.28)] backdrop-blur">
-          <div className="grid gap-10 px-6 py-8 sm:px-8 lg:grid-cols-[1.2fr_0.8fr] lg:px-10 lg:py-12">
-            <div className="space-y-6">
-              <Badge className="rounded-full border-sky-200 bg-sky-100 px-3 py-1 text-sky-800">
-                ICT206 Intelligent Systems Project
-              </Badge>
-              <div className="space-y-4">
-                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">
-                  Project report web application
-                </p>
-                <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl lg:text-[3.85rem] lg:leading-[1.02]">
-                  Rule-Based Expert System for Evaluating Freshwater Aquarium Fish Compatibility for Hobbyists
-                </h1>
-                <p className="max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
-                  This web application presents the design, implementation, as well as evaluation of a rule-based system
-                  for assessing compatibility between aquarium fish species in community tank setups. The system encodes
-                  domain and expert knowledge from established sources into a forward-chaining inference engine.
-                </p>
-                <p className="max-w-3xl text-base leading-8 text-slate-600">
-                  The system accepts user input for tank parameters such as volume in litres, pH, and water temperature,
-                  together with fish selections and quantities. The output is a compatibility summary that evaluates every
-                  combination of selected species, provides a numerical score on a scale of 0-100, and issues specific
-                  warnings regarding different tank and husbandry issues.
-                </p>
+    <motion.div layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+      <Card
+        className={`transition-all duration-300 border-2 overflow-hidden ${
+          selected ? "border-[#2d6a4f] shadow-md bg-[#f5f0e8]" : "border-transparent hover:border-[#d4c9b8] bg-card"
+        }`}
+      >
+        {/* Fish image */}
+        <button onClick={onToggle} className="w-full block">
+          <div className="relative w-full h-36 bg-[#e8e0d4] overflow-hidden">
+            <div className="flex h-full w-full items-end bg-[linear-gradient(135deg,#d9e6dc_0%,#f5f0e8_54%,#e5dccf_100%)] p-4 text-left">
+              <div className="absolute inset-0 opacity-20">
+                <div className="absolute -right-4 -top-4 rounded-full bg-white/40 p-5">
+                  <Fish className="h-14 w-14 text-[#2d6a4f]" />
+                </div>
               </div>
-
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  size="lg"
-                  className="rounded-full bg-slate-950 px-6 text-white hover:bg-slate-800"
-                  onClick={() => setActiveTab("lab")}
-                >
-                  Open web application
-                  <ArrowRight className="size-4" />
-                </Button>
-                <Button
-                  size="lg"
-                  variant="secondary"
-                  className="rounded-full border border-slate-200 bg-white px-6 text-slate-700"
-                  onClick={() => setActiveTab("presets")}
-                >
-                  View test scenarios
-                </Button>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <ShowcaseMetric title="AI Method" value="Rule-Based" detail="A transparent expert system instead of a black-box prediction model." />
-                <ShowcaseMetric title="Inference" value="Forward Chaining" detail="The engine evaluates all possible combinations from the user’s inputs." />
-                <ShowcaseMetric title="Inputs" value="Tank + Fish" detail="Volume, pH, temperature, species selection, and quantity are all considered." />
-                <ShowcaseMetric title="Output" value="0-100" detail="Each pairing receives a compatibility score together with warnings and reasons." />
+              <div className="relative max-w-[11rem]">
+                <p className="font-serif text-base font-semibold leading-tight text-[#1b4332]">
+                  {fish.commonName}
+                </p>
+                <p className="mt-1 text-[11px] uppercase tracking-[0.24em] text-[#2d6a4f]/75">
+                  {fish.category}
+                </p>
               </div>
             </div>
-
-            <Card className="border-slate-200/70 bg-slate-950 text-slate-50 shadow-xl">
-              <CardHeader className="space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <Badge className="rounded-full border-white/15 bg-white/10 text-white">Web application</Badge>
-                  <span className="text-sm text-slate-300">{stocking.length} species selected</span>
-                </div>
-                <CardTitle className="text-2xl text-white">Current tank setup</CardTitle>
-                <CardDescription className="text-slate-300">
-                  {stocking.length > 0
-                    ? formatSpeciesList(stocking)
-                    : "Add fish species and quantities to begin the compatibility assessment."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div className="rounded-2xl bg-white/6 p-3">
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Tank</p>
-                    <p className="mt-2 text-xl font-semibold">{tank.tankLitres}L</p>
-                  </div>
-                  <div className="rounded-2xl bg-white/6 p-3">
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">pH</p>
-                    <p className="mt-2 text-xl font-semibold">{tank.ph.toFixed(1)}</p>
-                  </div>
-                  <div className="rounded-2xl bg-white/6 p-3">
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Temp</p>
-                    <p className="mt-2 text-xl font-semibold">{tank.tempC}C</p>
-                  </div>
-                </div>
-
-                {evaluation.overallVerdict === "pending" ? (
-                  <div className="rounded-3xl border border-dashed border-white/20 bg-white/5 p-5 text-sm leading-7 text-slate-300">
-                    Add at least two species to unlock the full pairwise analysis. Tank-level warnings will still appear as
-                    soon as the parameters fall outside a fish’s safe range.
-                  </div>
-                ) : (
-                  <div className="space-y-4 rounded-3xl border border-white/10 bg-white/6 p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <Badge className={`rounded-full ${verdictDetails?.className}`}>{verdictDetails?.label}</Badge>
-                        <p className="mt-3 text-sm leading-7 text-slate-300">{verdictDetails?.summary}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Average score</p>
-                        <p className="mt-2 text-3xl font-semibold text-white">{evaluation.avgScore || "--"}</p>
-                      </div>
-                    </div>
-                    <Progress
-                      value={evaluation.avgScore}
-                      className="h-3 bg-white/10 [&>div]:bg-gradient-to-r [&>div]:from-cyan-400 [&>div]:to-emerald-400"
-                    />
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-2xl bg-white/5 p-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Pairs checked</p>
-                        <p className="mt-2 text-2xl font-semibold text-white">{evaluation.results.length}</p>
-                      </div>
-                      <div className="rounded-2xl bg-white/5 p-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Warnings</p>
-                        <p className="mt-2 text-2xl font-semibold text-white">{evaluation.warnings.length}</p>
-                      </div>
-                      <div className="rounded-2xl bg-white/5 p-3">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Risk pairs</p>
-                        <p className="mt-2 text-2xl font-semibold text-white">{evaluation.incompatibleCount}</p>
-                      </div>
-                    </div>
-                  </div>
+            {imgUrl && !imageFailed && (
+              <img
+                src={imgUrl}
+                alt={fish.commonName}
+                className={`absolute inset-0 h-full w-full object-cover transition-all duration-500 hover:scale-105 ${
+                  imageLoaded ? "opacity-100" : "opacity-0"
+                }`}
+                loading="lazy"
+                onLoad={() => setImageLoaded(true)}
+                onError={() => {
+                  setImageFailed(true);
+                  setImageLoaded(false);
+                }}
+              />
+            )}
+            {selected && (
+              <div className="absolute top-2 right-2">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#2d6a4f] text-white">
+                  <CheckCircle2 className="w-4 h-4" />
+                </span>
+              </div>
+            )}
+          </div>
+        </button>
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <button onClick={onToggle} className="text-left w-full">
+                <h4 className="font-serif font-semibold text-base leading-tight text-foreground">
+                  {fish.commonName}
+                </h4>
+                <p className="text-xs italic text-muted-foreground mt-0.5">{fish.scientificName}</p>
+              </button>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                <span className={`inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full ${tempBadge}`}>
+                  {fish.temperament}
+                </span>
+                <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                  {fish.sizeMin}–{fish.sizeMax} cm
+                </span>
+                {fish.schooling && (
+                  <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                    schooling ≥{fish.minSchoolSize}
+                  </span>
                 )}
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <Button
+                size="sm"
+                variant={selected ? "default" : "outline"}
+                onClick={onToggle}
+                className={`h-8 text-xs ${selected ? "bg-[#2d6a4f] hover:bg-[#1b4332]" : ""}`}
+              >
+                {selected ? "Selected" : "Add"}
+              </Button>
+              {selected && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => onQuantityChange(Math.max(1, quantity - 1))}
+                    className="w-6 h-6 rounded flex items-center justify-center bg-muted hover:bg-[#d4c9b8] transition-colors"
+                  >
+                    <Minus className="w-3 h-3" />
+                  </button>
+                  <span className="font-mono text-sm w-6 text-center">{quantity}</span>
+                  <button
+                    onClick={() => onQuantityChange(quantity + 1)}
+                    className="w-6 h-6 rounded flex items-center justify-center bg-muted hover:bg-[#d4c9b8] transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mt-2 transition-colors"
+          >
+            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            {expanded ? "Less" : "Details"}
+          </button>
+          <AnimatePresence>
+            {expanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-3 pt-3 border-t border-border">
+                  <p className="text-sm text-muted-foreground leading-relaxed mb-3">{fish.description}</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    <div className="flex justify-between"><span className="text-muted-foreground">pH</span><span className="font-mono">{fish.phMin}–{fish.phMax}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Temp</span><span className="font-mono">{fish.tempMin}–{fish.tempMax}°C</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Min Tank</span><span className="font-mono">{fish.minTankSize}L</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Swim Level</span><span className="font-mono">{fish.swimLevel}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Diet</span><span className="font-mono">{fish.diet}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Category</span><span className="font-mono">{fish.category}</span></div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+function PairResultCard({ result, fish1, fish2 }: { result: PairResult; fish1: FishSpecies; fish2: FishSpecies }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Card className={`border-l-4 ${result.compatible ? "border-l-[#2d6a4f]" : "border-l-[#c45b28]"}`}>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <ScoreGauge score={result.score} size={52} />
+            <div className="min-w-0">
+              <p className="font-serif font-semibold text-sm truncate">
+                {fish1.commonName} <span className="text-muted-foreground font-sans font-normal">&</span> {fish2.commonName}
+              </p>
+              <div className="flex items-center gap-1.5 mt-1">
+                {result.compatible ? (
+                  <Badge variant="outline" className="text-[10px] border-[#2d6a4f] text-[#2d6a4f] bg-[#2d6a4f]/5">
+                    <CheckCircle2 className="w-3 h-3 mr-1" /> Compatible
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] border-[#c45b28] text-[#c45b28] bg-[#c45b28]/5">
+                    <XCircle className="w-3 h-3 mr-1" /> Incompatible
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+          <button onClick={() => setExpanded(!expanded)} className="text-muted-foreground hover:text-foreground p-1">
+            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+        </div>
+        <AnimatePresence>
+          {expanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="overflow-hidden"
+            >
+              <Separator className="my-3" />
+              {result.warnings.length > 0 ? (
+                <ul className="space-y-2">
+                  {result.warnings.map((w, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <AlertTriangle className="w-4 h-4 text-[#c45b28] shrink-0 mt-0.5" />
+                      <span className="text-muted-foreground">{w}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-[#2d6a4f]" />
+                  No compatibility issues detected between these species.
+                </p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TankWarningItem({ warning }: { warning: TankWarning }) {
+  const icon = warning.severity === "danger" ? <XCircle className="w-4 h-4 text-[#c45b28]" />
+    : warning.severity === "warning" ? <AlertTriangle className="w-4 h-4 text-[#b8860b]" />
+    : <Info className="w-4 h-4 text-[#2d6a4f]" />;
+
+  const bg = warning.severity === "danger" ? "bg-[#c45b28]/5 border-[#c45b28]/20"
+    : warning.severity === "warning" ? "bg-[#b8860b]/5 border-[#b8860b]/20"
+    : "bg-[#2d6a4f]/5 border-[#2d6a4f]/20";
+
+  return (
+    <div className={`flex items-start gap-3 p-3 rounded-lg border ${bg}`}>
+      <span className="shrink-0 mt-0.5">{icon}</span>
+      <p className="text-sm">{warning.message}</p>
+    </div>
+  );
+}
+
+// ─── Main Page ───
+
+export function ShowcaseApp() {
+  // Tank parameters
+  const [tankVolume, setTankVolume] = useState(100);
+  const [tankPh, setTankPh] = useState(7.0);
+  const [tankTemp, setTankTemp] = useState(25);
+
+  // Fish selection: map of fishId -> quantity
+  const [selectedFish, setSelectedFish] = useState<Record<string, number>>({});
+
+  // Category filter
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  // Search query
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Temperament filter
+  const [activeTempFilter, setActiveTempFilter] = useState<string | null>(null);
+
+  // Report
+  const [report, setReport] = useState<CompatibilityReport | null>(null);
+  const [showReport, setShowReport] = useState(false);
+
+  const categories = useMemo(() => getCategories(), []);
+
+  const filteredFish = useMemo(() => {
+    let result = FISH_DATABASE;
+
+    // Category filter
+    if (activeCategory) {
+      result = result.filter(f => f.category === activeCategory);
+    }
+
+    // Temperament filter
+    if (activeTempFilter) {
+      result = result.filter(f => f.temperament === activeTempFilter);
+    }
+
+    // Search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(f =>
+        f.commonName.toLowerCase().includes(q) ||
+        f.scientificName.toLowerCase().includes(q) ||
+        f.category.toLowerCase().includes(q) ||
+        f.diet.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [activeCategory, activeTempFilter, searchQuery]);
+
+  const selectedCount = Object.keys(selectedFish).length;
+
+  const toggleFish = useCallback((fishId: string) => {
+    setSelectedFish(prev => {
+      const next = { ...prev };
+      if (next[fishId]) {
+        delete next[fishId];
+      } else {
+        const fish = FISH_DATABASE.find(f => f.id === fishId);
+        next[fishId] = fish?.schooling ? fish.minSchoolSize : 1;
+      }
+      return next;
+    });
+    setShowReport(false);
+  }, []);
+
+  const setQuantity = useCallback((fishId: string, qty: number) => {
+    setSelectedFish(prev => ({ ...prev, [fishId]: qty }));
+    setShowReport(false);
+  }, []);
+
+  const runAnalysis = useCallback(() => {
+    const entries = Object.entries(selectedFish).map(([id, qty]) => ({
+      species: FISH_DATABASE.find(f => f.id === id)!,
+      quantity: qty,
+    }));
+    const result = evaluateTank(entries, tankVolume, tankPh, tankTemp);
+    setReport(result);
+    setShowReport(true);
+
+    // Scroll to results
+    setTimeout(() => {
+      document.getElementById("results-section")?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  }, [selectedFish, tankVolume, tankPh, tankTemp]);
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* ─── Hero Section ─── */}
+      <header className="relative overflow-hidden">
+        <div className="absolute inset-0">
+          <img
+            src={HERO_IMG}
+            alt="Watercolour aquarium illustration"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#1b4332]/70 via-[#1b4332]/50 to-background" />
+        </div>
+        <div className="relative container py-16 sm:py-24">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="max-w-2xl"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Fish className="w-5 h-5 text-[#5bb5a2]" />
+              <span className="text-sm font-medium tracking-wide uppercase text-[#a8d5c8]">Expert System</span>
+            </div>
+            <h1 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight">
+              Freshwater Fish<br />Compatibility Advisor
+            </h1>
+            <p className="mt-4 text-base sm:text-lg text-[#d4e8df] leading-relaxed max-w-xl">
+              A rule-based expert system that evaluates whether your chosen fish can thrive together.
+              Set your tank parameters, select species, and receive a detailed compatibility report.
+            </p>
+            <div className="flex items-center gap-3 mt-3">
+              <Badge className="bg-[#2d6a4f]/80 text-white border-none text-xs">50 Species</Badge>
+              <Badge className="bg-[#2d6a4f]/80 text-white border-none text-xs">5 Rule Dimensions</Badge>
+              <Badge className="bg-[#2d6a4f]/80 text-white border-none text-xs">100% Accuracy</Badge>
+            </div>
+            <Button
+              size="lg"
+              className="mt-6 bg-[#2d6a4f] hover:bg-[#1b4332] text-white font-semibold shadow-lg"
+              onClick={() => document.getElementById("tank-setup")?.scrollIntoView({ behavior: "smooth" })}
+            >
+              Begin Assessment <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </motion.div>
+        </div>
+      </header>
+
+      {/* ─── Step 1: Tank Parameters ─── */}
+      <section id="tank-setup" className="container py-12 sm:py-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#2d6a4f] text-white font-serif font-bold text-sm">1</span>
+            <h2 className="font-serif text-2xl font-bold text-foreground">Configure Your Tank</h2>
+          </div>
+          <p className="text-muted-foreground ml-11 mb-8">
+            Enter the physical parameters of your aquarium. These values determine which species can safely inhabit your tank.
+          </p>
+
+          <div className="grid sm:grid-cols-3 gap-6 ml-11">
+            {/* Volume */}
+            <Card className="bg-card">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Droplets className="w-4 h-4 text-[#2d6a4f]" />
+                  <span className="text-sm font-medium">Tank Volume</span>
+                </div>
+                <div className="flex items-baseline gap-2 mb-3">
+                  <span className="font-mono text-3xl font-bold text-[#2d6a4f]">{tankVolume}</span>
+                  <span className="text-sm text-muted-foreground">litres</span>
+                </div>
+                <Slider
+                  value={[tankVolume]}
+                  onValueChange={(value) => {
+                    setTankVolume(getSliderValue(value));
+                    setShowReport(false);
+                  }}
+                  min={10}
+                  max={500}
+                  step={5}
+                  className="mt-2"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                  <span>10L</span><span>500L</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* pH */}
+            <Card className="bg-card">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <FlaskConical className="w-4 h-4 text-[#2d6a4f]" />
+                  <span className="text-sm font-medium">Water pH</span>
+                </div>
+                <div className="flex items-baseline gap-2 mb-3">
+                  <span className="font-mono text-3xl font-bold text-[#2d6a4f]">{tankPh.toFixed(1)}</span>
+                </div>
+                <Slider
+                  value={[tankPh * 10]}
+                  onValueChange={(value) => {
+                    setTankPh(getSliderValue(value) / 10);
+                    setShowReport(false);
+                  }}
+                  min={50}
+                  max={90}
+                  step={1}
+                  className="mt-2"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                  <span>5.0 (acidic)</span><span>9.0 (alkaline)</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Temperature */}
+            <Card className="bg-card">
+              <CardContent className="p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Thermometer className="w-4 h-4 text-[#2d6a4f]" />
+                  <span className="text-sm font-medium">Temperature</span>
+                </div>
+                <div className="flex items-baseline gap-2 mb-3">
+                  <span className="font-mono text-3xl font-bold text-[#2d6a4f]">{tankTemp}</span>
+                  <span className="text-sm text-muted-foreground">°C</span>
+                </div>
+                <Slider
+                  value={[tankTemp]}
+                  onValueChange={(value) => {
+                    setTankTemp(getSliderValue(value));
+                    setShowReport(false);
+                  }}
+                  min={10}
+                  max={34}
+                  step={1}
+                  className="mt-2"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                  <span>10°C</span><span>34°C</span>
+                </div>
               </CardContent>
             </Card>
           </div>
-        </section>
+        </motion.div>
+      </section>
 
-        <Tabs value={activeTab} onValueChange={(nextTab) => setActiveTab(nextTab as ActiveTab)} className="space-y-6">
-          <TabsList className="grid h-auto w-full grid-cols-3 rounded-3xl border border-slate-200/70 bg-white/80 p-1 shadow-sm backdrop-blur">
-            <TabsTrigger value="lab" className="rounded-[1.2rem] py-3 text-sm font-semibold">
-              Web App
-            </TabsTrigger>
-            <TabsTrigger value="presets" className="rounded-[1.2rem] py-3 text-sm font-semibold">
-              Test Cases
-            </TabsTrigger>
-            <TabsTrigger value="atlas" className="rounded-[1.2rem] py-3 text-sm font-semibold">
-              Knowledge Base
-            </TabsTrigger>
-          </TabsList>
+      <Separator className="container" />
 
-          <TabsContent value="lab" className="space-y-6">
-            <div className="grid gap-6 xl:grid-cols-[1.05fr_1fr]">
-              <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
-                <CardHeader>
-                  <CardTitle className="text-2xl text-slate-950">User Input</CardTitle>
-                  <CardDescription className="text-base leading-7 text-slate-600">
-                    The system accepts user input, primarily for tank parameters such as volume in litres, pH, and water
-                    temperature, followed by fish selection and quantity.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <TankSlider
-                    label="Tank size"
-                    icon={<Gauge className="size-4" />}
-                    value={tank.tankLitres}
-                    min={20}
-                    max={320}
-                    step={5}
-                    suffix="L"
-                    description="Tank volume is used for minimum tank size checks and overall setup suitability."
-                    onChange={(value) => updateTank("tankLitres", value)}
-                  />
-                  <TankSlider
-                    label="Water pH"
-                    icon={<FlaskConical className="size-4" />}
-                    value={tank.ph}
-                    min={4.5}
-                    max={8.5}
-                    step={0.1}
-                    suffix=""
-                    description="The system checks whether the tank’s pH stays within each species’ tolerance range and whether pairwise pH overlap exists."
-                    onChange={(value) => updateTank("ph", Number(value.toFixed(1)))}
-                  />
-                  <TankSlider
-                    label="Temperature"
-                    icon={<Thermometer className="size-4" />}
-                    value={tank.tempC}
-                    min={15}
-                    max={31}
-                    step={1}
-                    suffix="C"
-                    description="The system checks whether temperature overlaps exist and whether the chosen tank temperature is suitable for each fish."
-                    onChange={(value) => updateTank("tempC", value)}
-                  />
+      {/* ─── Step 2: Fish Selection ─── */}
+      <section className="container py-12 sm:py-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#2d6a4f] text-white font-serif font-bold text-sm">2</span>
+            <h2 className="font-serif text-2xl font-bold text-foreground">Select Your Fish</h2>
+          </div>
+          <p className="text-muted-foreground ml-11 mb-6">
+            Browse the species catalogue below. Click a fish to add it to your tank, then adjust quantities as needed.
+            {selectedCount > 0 && (
+              <span className="ml-2 font-medium text-[#2d6a4f]">
+                ({selectedCount} species selected)
+              </span>
+            )}
+          </p>
 
-                  <Separator />
+          {/* Search bar */}
+          <div className="ml-11 mb-4">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search by name, species, or category..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-card text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/30 focus:border-[#2d6a4f] transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
 
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">Fish Selection and Quantity</h3>
-                      <p className="text-sm leading-6 text-slate-500">
-                        Select species from the knowledge base and specify their quantities for community tank evaluation.
-                      </p>
-                    </div>
-                    <div className="grid gap-3 lg:grid-cols-[1fr_120px_auto]">
-                      <Select
-                        value={pendingFishId}
-                        onValueChange={(value) => setPendingFishId(value as FishId)}
-                      >
-                        <SelectTrigger className="h-12 rounded-2xl border-slate-200 bg-white">
-                          <SelectValue placeholder="Choose a fish species" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {fishOptions
-                            .filter((fish) => !selectedIds.has(fish.fishId))
-                            .map((fish) => (
-                              <SelectItem key={fish.fishId} value={fish.fishId}>
-                                {fish.name}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        type="number"
-                        min={1}
-                        inputMode="numeric"
-                        className="h-12 rounded-2xl border-slate-200 bg-white"
-                        value={pendingQuantity}
-                        onChange={(event) => setPendingQuantity(event.target.value)}
-                        aria-label="Fish quantity"
-                      />
-                      <Button
-                        className="h-12 rounded-2xl bg-slate-950 text-white hover:bg-slate-800"
-                        onClick={handleAddPendingFish}
-                        disabled={!pendingFishId}
-                      >
-                        <Plus className="size-4" />
-                        Add
-                      </Button>
-                    </div>
-                  </div>
+          {/* Category filters */}
+          <div className="ml-11 flex flex-wrap gap-2 mb-3">
+            <button
+              onClick={() => setActiveCategory(null)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                !activeCategory ? "bg-[#2d6a4f] text-white" : "bg-muted text-muted-foreground hover:bg-[#d4c9b8]"
+              }`}
+            >
+              All Species
+            </button>
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  activeCategory === cat ? "bg-[#2d6a4f] text-white" : "bg-muted text-muted-foreground hover:bg-[#d4c9b8]"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
 
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-lg font-semibold text-slate-900">Selected Fish</h3>
-                      <Badge className="rounded-full border-slate-200 bg-slate-100 text-slate-700">
-                        {stocking.length} species
-                      </Badge>
-                    </div>
-                    <div className="space-y-3">
-                      {stocking.map((entry) => {
-                        const fish = fishDatabase[entry.fishId];
-                        return (
-                          <div
-                            key={entry.fishId}
-                            className="flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-slate-50/70 p-4 lg:flex-row lg:items-center lg:justify-between"
-                          >
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-lg font-semibold text-slate-950">{fish.name}</p>
-                                <Badge className="rounded-full border-slate-200 bg-white text-slate-600">
-                                  {fish.temperament}
-                                </Badge>
-                                <Badge className="rounded-full border-slate-200 bg-white text-slate-600">
-                                  {fish.swimmingLevel}
-                                </Badge>
-                              </div>
-                              <p className="mt-2 text-sm leading-6 text-slate-500">
-                                pH {fish.minPh}-{fish.maxPh} • {fish.minTempC}-{fish.maxTempC}C • minimum tank {fish.minTankLitres}L
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <Input
-                                type="number"
-                                min={1}
-                                className="h-11 w-24 rounded-2xl border-slate-200 bg-white"
-                                value={entry.quantity}
-                                onChange={(event) =>
-                                  updateQuantity(
-                                    entry.fishId,
-                                    Number.parseInt(event.target.value, 10) || 1,
-                                  )
-                                }
-                                aria-label={`${fish.name} quantity`}
-                              />
-                              <Button
-                                variant="outline"
-                                className="h-11 rounded-2xl border-slate-200 bg-white text-slate-600"
-                                onClick={() => removeFish(entry.fishId)}
-                              >
-                                <Trash2 className="size-4" />
-                                Remove
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
+          {/* Temperament filters */}
+          <div className="ml-11 flex flex-wrap gap-2 mb-6">
+            <span className="text-xs text-muted-foreground self-center mr-1">Temperament:</span>
+            {(["peaceful", "semi-aggressive", "aggressive"] as const).map(temp => {
+              const colors = temp === "peaceful" ? "bg-[#2d6a4f] text-white" :
+                temp === "semi-aggressive" ? "bg-[#b8860b] text-white" : "bg-[#c45b28] text-white";
+              const inactiveColors = "bg-muted text-muted-foreground hover:bg-[#d4c9b8]";
+              return (
+                <button
+                  key={temp}
+                  onClick={() => setActiveTempFilter(activeTempFilter === temp ? null : temp)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    activeTempFilter === temp ? colors : inactiveColors
+                  }`}
+                >
+                  {temp}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Results count */}
+          <div className="ml-11 mb-4">
+            <p className="text-xs text-muted-foreground">
+              Showing {filteredFish.length} of {FISH_DATABASE.length} species
+            </p>
+          </div>
+
+          {/* Fish grid */}
+          <div className="ml-11 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredFish.map(fish => (
+              <FishCard
+                key={fish.id}
+                fish={fish}
+                selected={!!selectedFish[fish.id]}
+                quantity={selectedFish[fish.id] || 0}
+                onToggle={() => toggleFish(fish.id)}
+                onQuantityChange={(q) => setQuantity(fish.id, q)}
+              />
+            ))}
+          </div>
+
+          {/* No results message */}
+          {filteredFish.length === 0 && (
+            <div className="ml-11 py-12 text-center">
+              <Fish className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+              <p className="text-muted-foreground text-sm">No species match your search. Try a different term or clear the filters.</p>
+            </div>
+          )}
+        </motion.div>
+      </section>
+
+      {/* ─── Analyse Button ─── */}
+      {selectedCount > 0 && (
+        <div className="container pb-8">
+          <div className="ml-11">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
+              <Button
+                size="lg"
+                className="w-full sm:w-auto bg-[#2d6a4f] hover:bg-[#1b4332] text-white font-semibold shadow-lg text-base px-8"
+                onClick={runAnalysis}
+              >
+                <Waves className="w-5 h-5 mr-2" />
+                Analyse Compatibility ({selectedCount} species)
+              </Button>
+            </motion.div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Step 3: Results ─── */}
+      <AnimatePresence>
+        {showReport && report && (
+          <motion.section
+            id="results-section"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 30 }}
+            transition={{ duration: 0.5 }}
+            className="container pb-16"
+          >
+            {/* Decorative divider */}
+            <div className="mb-8">
+              <img src={DIVIDER_IMG} alt="" className="w-full max-w-lg mx-auto h-16 object-contain opacity-60" />
+            </div>
+
+            <div className="ml-11">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="flex items-center justify-center w-8 h-8 rounded-full bg-[#2d6a4f] text-white font-serif font-bold text-sm">3</span>
+                <h2 className="font-serif text-2xl font-bold text-foreground">Compatibility Report</h2>
+              </div>
+
+              {/* Overall summary card */}
+              <Card className={`mt-6 border-2 ${report.overallCompatible ? "border-[#2d6a4f]/30 bg-[#2d6a4f]/5" : "border-[#c45b28]/30 bg-[#c45b28]/5"}`}>
+                <CardContent className="p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                    <ScoreGauge score={report.overallScore} size={100} />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        {report.overallCompatible ? (
+                          <CheckCircle2 className="w-5 h-5 text-[#2d6a4f]" />
+                        ) : (
+                          <XCircle className="w-5 h-5 text-[#c45b28]" />
+                        )}
+                        <h3 className="font-serif font-bold text-lg">
+                          {report.overallCompatible ? "Community Approved" : "Compatibility Issues Found"}
+                        </h3>
+                      </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{report.summary}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <div className="space-y-6">
-                <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
-                  <CardHeader>
-                    <CardTitle className="text-2xl text-slate-950">Compatibility Summary</CardTitle>
-                    <CardDescription className="text-base leading-7 text-slate-600">
-                      The output evaluates every combination of selected species, provides a numerical compatibility score
-                      on a scale of 0-100, and classifies a pair as compatible or incompatible using the report’s scoring approach.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-5">
-                    {evaluation.overallVerdict === "pending" ? (
-                      <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-7 text-slate-600">
-                        Add at least two species to generate pairwise compatibility results. You can still preview tank
-                        constraints by changing pH, temperature, and litres now.
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <Badge className={`rounded-full ${verdictDetails?.className}`}>{verdictDetails?.label}</Badge>
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-slate-500">Average score</p>
-                            <p className="text-4xl font-semibold tracking-tight text-slate-950">
-                              {evaluation.avgScore}
-                            </p>
-                          </div>
-                        </div>
-                        <Progress
-                          value={evaluation.avgScore}
-                          className="h-3 bg-slate-200 [&>div]:bg-gradient-to-r [&>div]:from-sky-500 [&>div]:to-teal-500"
-                        />
-                        <p className="text-sm leading-7 text-slate-600">{verdictDetails?.summary}</p>
-                      </>
-                    )}
+              {/* Tank warnings */}
+              {report.tankWarnings.length > 0 && (
+                <div className="mt-8">
+                  <h3 className="font-serif font-semibold text-lg mb-4 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-[#b8860b]" />
+                    Tank Warnings
+                  </h3>
+                  <div className="space-y-3">
+                    {report.tankWarnings.map((w, i) => (
+                      <TankWarningItem key={i} warning={w} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                        <p className="text-sm font-medium text-slate-500">Pairs evaluated</p>
-                        <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-                          {evaluation.results.length}
-                        </p>
-                      </div>
-                      <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                        <p className="text-sm font-medium text-slate-500">Warnings</p>
-                        <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-                          {evaluation.warnings.length}
-                        </p>
-                      </div>
-                      <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                        <p className="text-sm font-medium text-slate-500">Failed pairs</p>
-                        <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
-                          {evaluation.incompatibleCount}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
-                  <CardHeader>
-                    <CardTitle className="text-2xl text-slate-950">Tank Constraints</CardTitle>
-                    <CardDescription className="text-base leading-7 text-slate-600">
-                      These checks generate tank-level warnings rather than fish combination penalties, because they affect
-                      the overall setup instead of only a single pairing.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {evaluation.warnings.length === 0 ? (
-                      <div className="flex items-start gap-3 rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
-                        <ShieldCheck className="mt-0.5 size-5 shrink-0" />
-                        <p className="text-sm leading-7">
-                          No tank-level warnings were triggered for the current setup.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {evaluation.warnings.map((warning) => (
-                          <div
-                            key={warning}
-                            className="flex items-start gap-3 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-amber-900"
-                          >
-                            <TriangleAlert className="mt-0.5 size-5 shrink-0" />
-                            <p className="text-sm leading-7">{warning}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
-                  <CardHeader>
-                    <CardTitle className="text-2xl text-slate-950">Pairwise Compatibility Analysis</CardTitle>
-                    <CardDescription className="text-base leading-7 text-slate-600">
-                      Every unique pairing is evaluated using cumulative penalties across water parameters, temperament,
-                      size ratio, special domain rules, and tank-related checks.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {evaluation.results.length === 0 ? (
-                      <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-7 text-slate-600">
-                        Pair results appear here once there are at least two species in the tank or a same-species Betta
-                        conflict to evaluate.
-                      </div>
-                    ) : (
-                      evaluation.results.map((result) => (
-                        <div key={`${result.fishAId}-${result.fishBId}`} className="rounded-3xl border border-slate-200/70 bg-slate-50/80 p-5">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-lg font-semibold text-slate-950">
-                                  {result.fishAName} + {result.fishBName}
-                                </p>
-                                <Badge
-                                  className={`rounded-full ${
-                                    result.compatible
-                                      ? "border-emerald-300 bg-emerald-100 text-emerald-800"
-                                      : "border-rose-300 bg-rose-100 text-rose-800"
-                                  }`}
-                                >
-                                  {result.compatible ? "Compatible" : "Incompatible"}
-                                </Badge>
-                              </div>
-                              <p className="mt-2 text-sm leading-6 text-slate-500">
-                                Score penalties stack as the rule engine discovers conflicts.
-                              </p>
-                            </div>
-                            <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
-                              <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Score</p>
-                              <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{result.score}</p>
-                            </div>
-                          </div>
-                          <div className="mt-4 space-y-2">
-                            {result.reasons.map((reason) => (
-                              <div key={reason} className="flex items-start gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm">
-                                {result.compatible ? (
-                                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                                ) : (
-                                  <AlertCircle className="mt-0.5 size-4 shrink-0 text-rose-500" />
-                                )}
-                                <p className="text-sm leading-7 text-slate-600">{reason}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
+              {/* Pairwise results */}
+              {report.pairResults.length > 0 && (
+                <div className="mt-8">
+                  <h3 className="font-serif font-semibold text-lg mb-4 flex items-center gap-2">
+                    <Fish className="w-5 h-5 text-[#2d6a4f]" />
+                    Pairwise Compatibility
+                  </h3>
+                  <div className="space-y-3">
+                    {report.pairResults
+                      .sort((a, b) => a.score - b.score)
+                      .map((result, i) => {
+                        const f1 = FISH_DATABASE.find(f => f.id === result.fish1)!;
+                        const f2 = FISH_DATABASE.find(f => f.id === result.fish2)!;
+                        return <PairResultCard key={i} result={result} fish1={f1} fish2={f2} />;
+                      })}
+                  </div>
+                </div>
+              )}
             </div>
-          </TabsContent>
+          </motion.section>
+        )}
+      </AnimatePresence>
 
-          <TabsContent value="presets" className="space-y-6">
-              <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
-                <CardHeader>
-                  <CardTitle className="text-2xl text-slate-950">Evaluation Method</CardTitle>
-                  <CardDescription className="text-base leading-7 text-slate-600">
-                    Our test cases were designed to evaluate the system off fish stocking scenarios across clearly
-                    compatible, clearly incompatible, borderline, and edge or outlier categories.
-                  </CardDescription>
-                </CardHeader>
-              <CardContent className="grid gap-4 lg:grid-cols-2">
-                {presetScenarios.map((preset) => (
-                  <div
-                    key={preset.id}
-                    className="rounded-[1.75rem] border border-slate-200/70 bg-slate-50/80 p-5 shadow-sm"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <Badge className={`rounded-full ${categoryBadgeClass[preset.category]}`}>
-                        {preset.category}
-                      </Badge>
-                      <span className="text-sm font-medium text-slate-500">TC-{preset.id}</span>
-                    </div>
-                    <h3 className="mt-4 text-xl font-semibold text-slate-950">{preset.title}</h3>
-                    <p className="mt-3 text-sm leading-7 text-slate-600">{preset.description}</p>
-                    <p className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm leading-7 text-slate-600 shadow-sm">
-                      {preset.highlight}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {preset.fish.map((entry) => (
-                        <Badge key={`${preset.id}-${entry.fishId}`} className="rounded-full border-slate-200 bg-white text-slate-600">
-                          {fishDatabase[entry.fishId].name} x{entry.quantity}
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-sm text-slate-500">
-                        {preset.tankLitres}L • pH {preset.ph.toFixed(1)} • {preset.tempC}C
-                      </p>
-                      <Button
-                        className="rounded-full bg-slate-950 text-white hover:bg-slate-800"
-                        onClick={() => applyPreset(preset.id)}
-                      >
-                        Apply preset
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="atlas" className="space-y-6">
-            <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
-              <CardHeader>
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div>
-                    <CardTitle className="text-2xl text-slate-950">Domain Knowledge Acquisition</CardTitle>
-                    <CardDescription className="text-base leading-7 text-slate-600">
-                      Domain knowledge was acquired from established aquarist sources such as PetCo, Aqueon, and
-                      SeriouslyFish, then curated into a structured fish knowledge base.
-                    </CardDescription>
-                  </div>
-                  <div className="relative w-full lg:max-w-sm">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                    <Input
-                      value={atlasSearch}
-                      onChange={(event) => setAtlasSearch(event.target.value)}
-                      placeholder="Search by name, group, or temperament"
-                      className="h-12 rounded-2xl border-slate-200 bg-white pl-11"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-                {filteredFish.map((fish) => (
-                  <div
-                    key={fish.fishId}
-                    className="rounded-[1.75rem] border border-slate-200/70 bg-slate-50/80 p-5 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-xl font-semibold text-slate-950">{fish.name}</h3>
-                        <p className="mt-2 text-sm italic text-slate-500">{fish.scientificName}</p>
-                      </div>
-                      <Badge className="rounded-full border-slate-200 bg-white text-slate-600">
-                        {fish.temperament}
-                      </Badge>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Badge className="rounded-full border-sky-200 bg-sky-100 text-sky-800">
-                        {fish.speciesGroup}
-                      </Badge>
-                      <Badge className="rounded-full border-teal-200 bg-teal-100 text-teal-800">
-                        {fish.swimmingLevel}
-                      </Badge>
-                      <Badge className="rounded-full border-amber-200 bg-amber-100 text-amber-800">
-                        {fish.diet}
-                      </Badge>
-                    </div>
-
-                    <div className="mt-5 grid grid-cols-2 gap-3 text-sm text-slate-600">
-                      <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                        <p className="text-xs uppercase tracking-[0.24em] text-slate-400">pH</p>
-                        <p className="mt-2 font-semibold text-slate-900">
-                          {fish.minPh}-{fish.maxPh}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                        <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Temp</p>
-                        <p className="mt-2 font-semibold text-slate-900">
-                          {fish.minTempC}-{fish.maxTempC}C
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                        <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Size</p>
-                        <p className="mt-2 font-semibold text-slate-900">
-                          {fish.minSizeCm}-{fish.maxSizeCm} cm
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
-                        <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Min tank</p>
-                        <p className="mt-2 font-semibold text-slate-900">{fish.minTankLitres}L</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 flex items-center justify-between gap-3">
-                      <p className="text-sm leading-6 text-slate-500">
-                        {fish.schooling ? "Schooling species: best kept in groups of 6 or more." : "Can be kept without a full school."}
-                      </p>
-                      <Button
-                        variant="outline"
-                        className="rounded-full border-slate-200 bg-white text-slate-700"
-                        onClick={() => addFish(fish.fishId, fish.schooling ? 6 : 1)}
-                      >
-                        <Plus className="size-4" />
-                        Add
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
-                  <BarChart3 className="size-5" />
-                </span>
-                <div>
-                  <CardTitle className="text-2xl text-slate-950">Results</CardTitle>
-                  <CardDescription className="text-base leading-7 text-slate-600">
-                    The evaluation metric for this project was strictly based on system accuracy, with a target of 95%
-                    or higher and an achieved result of 100%.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                  <p className="text-sm font-medium text-slate-500">Target Accuracy</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">95%</p>
-                </div>
-                <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                  <p className="text-sm font-medium text-slate-500">Achieved Accuracy</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">100%</p>
-                </div>
-                <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                  <p className="text-sm font-medium text-slate-500">False Positives / Negatives</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">0 / 0</p>
-                </div>
-              </div>
-
-              <div className="grid gap-4">
-                <div className="overflow-hidden rounded-[1.75rem] border border-slate-200/70 bg-white shadow-sm">
-                  <Image
-                    src="/accuracy-chart.png"
-                    alt="Accuracy by test category chart"
-                    width={1100}
-                    height={700}
-                  className="h-auto w-full"
-                  />
-                </div>
-                <p className="rounded-[1.75rem] border border-slate-200/70 bg-slate-50 px-5 py-4 text-sm leading-7 text-slate-600">
-                  The score distribution shows compatible pairs clustering in the higher ranges while incompatible pairs
-                  cluster below the compatibility threshold, giving a clean separation around the score boundary.
-                </p>
-                <div className="overflow-hidden rounded-[1.75rem] border border-slate-200/70 bg-white shadow-sm">
-                  <Image
-                    src="/confusion-matrix.png"
-                    alt="Confusion matrix chart"
-                    width={900}
-                    height={900}
-                    className="h-auto w-full"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <span className="inline-flex size-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-                  <BookOpen className="size-5" />
-                </span>
-                <div>
-                  <CardTitle className="text-2xl text-slate-950">AI Method and Tools</CardTitle>
-                  <CardDescription className="text-base leading-7 text-slate-600">
-                    The problem domain is governed by explicit, categorical rules, making a rule-based expert system a
-                    suitable AI method for this project.
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <Waves className="size-4 text-sky-600" />
-                    Water Parameter Overlap
-                  </div>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">
-                    We calculate the overlap of tolerable pH and temperature ranges between fish pairs and apply penalties
-                    when those overlaps are missing or too narrow.
-                  </p>
-                </div>
-                <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <Fish className="size-4 text-emerald-600" />
-                    Temperament Compatibility
-                  </div>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">
-                    Peaceful, semi-aggressive, and aggressive fish combinations are penalised according to the risk of
-                    stress, bullying, or aggression.
-                  </p>
-                </div>
-                <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <Database className="size-4 text-amber-600" />
-                    Tank Constraints
-                  </div>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">
-                    Minimum tank size, live pH, live temperature, and schooling requirements generate warnings about the
-                    overall aquarium setup.
-                  </p>
-                </div>
-                <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <TriangleAlert className="size-4 text-rose-500" />
-                    Special Domain Rules
-                  </div>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">
-                    Behavioural quirks such as Betta aggression, Tiger Barb fin-nipping, and Angelfish predation are
-                    encoded as targeted rules on top of general compatibility checks.
-                  </p>
-                </div>
-              </div>
-
-              <Accordion
-                defaultValue={[ruleHighlights[0].title]}
-                className="rounded-[1.75rem] border border-slate-200/70 bg-slate-50/80 px-5"
-              >
-                {ruleHighlights.map((rule) => (
-                  <AccordionItem key={rule.title} value={rule.title} className="border-slate-200/70">
-                    <AccordionTrigger className="text-left text-base font-semibold text-slate-900">
-                      {rule.title}
-                    </AccordionTrigger>
-                    <AccordionContent className="text-sm leading-7 text-slate-600">
-                      {rule.body}
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="rounded-[2rem] border border-slate-200/70 bg-slate-950 px-6 py-8 text-white shadow-[0_24px_80px_-24px_rgba(15,23,42,0.48)] sm:px-8">
-          <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
-            <div className="space-y-3">
-              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-300">Conclusion and future improvements</p>
-              <h2 className="text-3xl font-semibold tracking-tight">
-                By delivering this system as a web application, it eliminates the barrier to entry.
-              </h2>
-              <p className="max-w-3xl text-base leading-8 text-slate-300">
-                The gradual scoring mechanism provides a nuanced compatibility assessment instead of only a binary verdict,
-                which makes the system more useful for handling borderline cases and communicating risk to hobbyists.
-              </p>
-              <p className="max-w-3xl text-sm leading-7 text-slate-400">
-                Development acknowledged in the report includes Experta for the Python expert system, React, TypeScript,
-                Tailwind CSS, shadcn/ui, and GitHub Pages for the web application, together with knowledge-base sources
-                such as PetCo, Aqueon, and SeriouslyFish.
-              </p>
+      {/* ─── Footer ─── */}
+      <footer className="border-t border-border bg-[#f5f0e8]">
+        <div className="container py-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Fish className="w-4 h-4 text-[#2d6a4f]" />
+              <span className="font-serif font-semibold text-sm text-foreground">Fish Compatibility Expert System</span>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Badge className="rounded-full border-white/15 bg-white/10 px-4 py-2 text-white">
-                Expand the knowledge base
-              </Badge>
-              <Badge className="rounded-full border-white/15 bg-white/10 px-4 py-2 text-white">
-                Add a fuzzy logic component
-              </Badge>
-              <Badge className="rounded-full border-white/15 bg-white/10 px-4 py-2 text-white">
-                User accounts and saved tanks
-              </Badge>
-              <Badge className="rounded-full border-white/15 bg-white/10 px-4 py-2 text-white">
-                Suggest alternative species
-              </Badge>
-            </div>
+            <p className="text-xs text-muted-foreground text-center sm:text-right">
+              ICT206 Intelligent Systems Project — Murdoch University, 2026.
+              <br />
+              Knowledge base: 50 species derived from PetCo, Aqueon, and SeriouslyFish.
+            </p>
           </div>
-        </section>
-      </main>
+        </div>
+      </footer>
     </div>
   );
 }
