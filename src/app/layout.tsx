@@ -14,9 +14,9 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aquarium Compatibility Showcase",
+  title: "Rule-Based Expert System for Evaluating Freshwater Aquarium Fish Compatibility for Hobbyists",
   description:
-    "Interactive Next.js showcase for a rule-based freshwater fish compatibility expert system built for ICT206.",
+    "Interactive web application companion for the ICT206 project report on freshwater aquarium fish compatibility.",
 };
 
 export default function RootLayout({

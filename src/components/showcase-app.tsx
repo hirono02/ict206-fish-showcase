@@ -77,40 +77,43 @@ const verdictCopy: Record<
   recommended: {
     label: "Recommended",
     className: "border-emerald-300 bg-emerald-100 text-emerald-800",
-    summary: "The selected fish community is working well across behaviour, water parameters, and tank needs.",
+    summary:
+      "The selected fish community is compatible based on water parameter overlap, temperament compatibility, size-ratio checks, behavioural rules, and tank constraints.",
   },
   caution: {
     label: "Compatible with cautions",
     className: "border-amber-300 bg-amber-100 text-amber-800",
-    summary: "The fish can live together, but husbandry issues still need attention before the tank is truly healthy.",
+    summary:
+      "The fish can coexist, but the system has issued setup warnings regarding tank conditions or schooling requirements that should be addressed.",
   },
   reconsider: {
     label: "High risk mix",
     className: "border-rose-300 bg-rose-100 text-rose-800",
-    summary: "At least one pair fails the expert rules, so the stocking plan should be changed before setup.",
+    summary:
+      "At least one pairing falls below the compatibility threshold, so the stocking combination should be reconsidered before setup.",
   },
 };
 
 const ruleHighlights = [
   {
-    title: "Water overlap",
-    body: "Each pair is checked for overlapping pH and temperature ranges. No overlap causes a steep penalty because there is no stable environment that suits both species.",
+    title: "Water Parameter Overlap",
+    body: "We calculate the overlap of tolerable pH and temperature ranges between a pair of fish. No overlap causes a heavy penalty because the fish cannot exist in the same water conditions.",
   },
   {
-    title: "Temperament fit",
-    body: "Peaceful, semi-aggressive, and aggressive profiles affect the score differently. Aggressive fish beside peaceful fish is one of the strongest conflict signals.",
+    title: "Temperament Compatibility",
+    body: "The system penalises combinations of peaceful, semi-aggressive, and aggressive species depending on the likelihood of stress, bullying, or attack.",
   },
   {
-    title: "Predation risk",
-    body: "Large size ratios are treated as danger signals. Once the larger fish is 4x the size of the smaller one, the expert system assumes possible predation.",
+    title: "Size Ratio (Predation/Bully Risk)",
+    body: "We calculate the ratio of the larger fish’s maximum adult size to the smaller fish’s maximum adult size. Large gaps trigger penalties for predation, stress, or nipping risk.",
   },
   {
-    title: "Tank-level warnings",
-    body: "Minimum tank size, live pH, live temperature, and schooling counts are evaluated independently from pair compatibility.",
+    title: "Special Domain Rules",
+    body: "Specific behavioural patterns derived from expert knowledge, such as Betta aggression, Tiger Barb fin-nipping, and Angelfish predation on very small fish, are encoded as targeted rules.",
   },
   {
-    title: "Targeted domain rules",
-    body: "The system carries specific heuristics such as Betta versus Guppy, Tiger Barb fin-nipping, Oscar predation, and cold-water versus tropical conflicts.",
+    title: "Tank Constraints",
+    body: "Tank volume, water pH, water temperature, and schooling requirements are checked separately so the system can warn about poor setups even when the fish pairing itself is compatible.",
   },
 ];
 
@@ -289,19 +292,25 @@ export function ShowcaseApp() {
           <div className="grid gap-10 px-6 py-8 sm:px-8 lg:grid-cols-[1.2fr_0.8fr] lg:px-10 lg:py-12">
             <div className="space-y-6">
               <Badge className="rounded-full border-sky-200 bg-sky-100 px-3 py-1 text-sky-800">
-                ICT206 Intelligent Systems Showcase
+                ICT206 Intelligent Systems Project
               </Badge>
               <div className="space-y-4">
                 <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">
-                  Rule-based aquarium expert system
+                  Project report web application
                 </p>
-                <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
-                  Explore a freshwater fish compatibility advisor built for real tank planning.
+                <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl lg:text-[3.85rem] lg:leading-[1.02]">
+                  Rule-Based Expert System for Evaluating Freshwater Aquarium Fish Compatibility for Hobbyists
                 </h1>
-                <p className="max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
-                  This Next.js showcase turns the original Python expert system into an interactive web app. Build a tank,
-                  test validated scenarios, and inspect how rules around pH, temperature, temperament, schooling, and
-                  predation shape the final recommendation.
+                <p className="max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
+                  This web application presents the design, implementation, as well as evaluation of a rule-based system
+                  for assessing compatibility between aquarium fish species in community tank setups. The system encodes
+                  domain and expert knowledge from established sources into a forward-chaining inference engine.
+                </p>
+                <p className="max-w-3xl text-base leading-8 text-slate-600">
+                  The system accepts user input for tank parameters such as volume in litres, pH, and water temperature,
+                  together with fish selections and quantities. The output is a compatibility summary that evaluates every
+                  combination of selected species, provides a numerical score on a scale of 0-100, and issues specific
+                  warnings regarding different tank and husbandry issues.
                 </p>
               </div>
 
@@ -311,7 +320,7 @@ export function ShowcaseApp() {
                   className="rounded-full bg-slate-950 px-6 text-white hover:bg-slate-800"
                   onClick={() => setActiveTab("lab")}
                 >
-                  Open tank lab
+                  Open web application
                   <ArrowRight className="size-4" />
                 </Button>
                 <Button
@@ -320,27 +329,29 @@ export function ShowcaseApp() {
                   className="rounded-full border border-slate-200 bg-white px-6 text-slate-700"
                   onClick={() => setActiveTab("presets")}
                 >
-                  Try preset scenarios
+                  View test scenarios
                 </Button>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <ShowcaseMetric title="Knowledge Base" value="26" detail="Freshwater species encoded from the project dataset." />
-                <ShowcaseMetric title="Validation Suite" value="50" detail="Reference scenarios used to evaluate the expert rules." />
-                <ShowcaseMetric title="Model Style" value="Rule-Based" detail="Transparent scoring instead of black-box prediction." />
-                <ShowcaseMetric title="Core Checks" value="6" detail="Water, behaviour, size, schooling, tank size, and special heuristics." />
+                <ShowcaseMetric title="AI Method" value="Rule-Based" detail="A transparent expert system instead of a black-box prediction model." />
+                <ShowcaseMetric title="Inference" value="Forward Chaining" detail="The engine evaluates all possible combinations from the user’s inputs." />
+                <ShowcaseMetric title="Inputs" value="Tank + Fish" detail="Volume, pH, temperature, species selection, and quantity are all considered." />
+                <ShowcaseMetric title="Output" value="0-100" detail="Each pairing receives a compatibility score together with warnings and reasons." />
               </div>
             </div>
 
             <Card className="border-slate-200/70 bg-slate-950 text-slate-50 shadow-xl">
               <CardHeader className="space-y-4">
                 <div className="flex items-center justify-between gap-3">
-                  <Badge className="rounded-full border-white/15 bg-white/10 text-white">Live snapshot</Badge>
+                  <Badge className="rounded-full border-white/15 bg-white/10 text-white">Web application</Badge>
                   <span className="text-sm text-slate-300">{stocking.length} species selected</span>
                 </div>
-                <CardTitle className="text-2xl text-white">Current tank plan</CardTitle>
+                <CardTitle className="text-2xl text-white">Current tank setup</CardTitle>
                 <CardDescription className="text-slate-300">
-                  {stocking.length > 0 ? formatSpeciesList(stocking) : "Add fish to start the compatibility analysis."}
+                  {stocking.length > 0
+                    ? formatSpeciesList(stocking)
+                    : "Add fish species and quantities to begin the compatibility assessment."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -404,13 +415,13 @@ export function ShowcaseApp() {
         <Tabs value={activeTab} onValueChange={(nextTab) => setActiveTab(nextTab as ActiveTab)} className="space-y-6">
           <TabsList className="grid h-auto w-full grid-cols-3 rounded-3xl border border-slate-200/70 bg-white/80 p-1 shadow-sm backdrop-blur">
             <TabsTrigger value="lab" className="rounded-[1.2rem] py-3 text-sm font-semibold">
-              Tank Lab
+              Web App
             </TabsTrigger>
             <TabsTrigger value="presets" className="rounded-[1.2rem] py-3 text-sm font-semibold">
-              Preset Cases
+              Test Cases
             </TabsTrigger>
             <TabsTrigger value="atlas" className="rounded-[1.2rem] py-3 text-sm font-semibold">
-              Species Atlas
+              Knowledge Base
             </TabsTrigger>
           </TabsList>
 
@@ -418,9 +429,10 @@ export function ShowcaseApp() {
             <div className="grid gap-6 xl:grid-cols-[1.05fr_1fr]">
               <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
                 <CardHeader>
-                  <CardTitle className="text-2xl text-slate-950">Build a tank</CardTitle>
+                  <CardTitle className="text-2xl text-slate-950">User Input</CardTitle>
                   <CardDescription className="text-base leading-7 text-slate-600">
-                    Adjust the aquarium profile, then mix species to see how the expert rules change in real time.
+                    The system accepts user input, primarily for tank parameters such as volume in litres, pH, and water
+                    temperature, followed by fish selection and quantity.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
@@ -432,7 +444,7 @@ export function ShowcaseApp() {
                     max={320}
                     step={5}
                     suffix="L"
-                    description="Volume affects minimum tank requirements and determines whether a stocking plan is physically realistic."
+                    description="Tank volume is used for minimum tank size checks and overall setup suitability."
                     onChange={(value) => updateTank("tankLitres", value)}
                   />
                   <TankSlider
@@ -443,7 +455,7 @@ export function ShowcaseApp() {
                     max={8.5}
                     step={0.1}
                     suffix=""
-                    description="The rules look for overlapping pH ranges across every pair of species."
+                    description="The system checks whether the tank’s pH stays within each species’ tolerance range and whether pairwise pH overlap exists."
                     onChange={(value) => updateTank("ph", Number(value.toFixed(1)))}
                   />
                   <TankSlider
@@ -454,7 +466,7 @@ export function ShowcaseApp() {
                     max={31}
                     step={1}
                     suffix="C"
-                    description="Warm tropical species can fail quickly if the safe temperature window is too narrow."
+                    description="The system checks whether temperature overlaps exist and whether the chosen tank temperature is suitable for each fish."
                     onChange={(value) => updateTank("tempC", value)}
                   />
 
@@ -462,9 +474,9 @@ export function ShowcaseApp() {
 
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-slate-900">Add a species</h3>
+                      <h3 className="text-lg font-semibold text-slate-900">Fish Selection and Quantity</h3>
                       <p className="text-sm leading-6 text-slate-500">
-                        The selector only lists fish that are not already in the tank.
+                        Select species from the knowledge base and specify their quantities for community tank evaluation.
                       </p>
                     </div>
                     <div className="grid gap-3 lg:grid-cols-[1fr_120px_auto]">
@@ -507,7 +519,7 @@ export function ShowcaseApp() {
 
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-lg font-semibold text-slate-900">Current stocking</h3>
+                      <h3 className="text-lg font-semibold text-slate-900">Selected Fish</h3>
                       <Badge className="rounded-full border-slate-200 bg-slate-100 text-slate-700">
                         {stocking.length} species
                       </Badge>
@@ -568,9 +580,10 @@ export function ShowcaseApp() {
               <div className="space-y-6">
                 <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
                   <CardHeader>
-                    <CardTitle className="text-2xl text-slate-950">Compatibility verdict</CardTitle>
+                    <CardTitle className="text-2xl text-slate-950">Compatibility Summary</CardTitle>
                     <CardDescription className="text-base leading-7 text-slate-600">
-                      The score below is generated from the same rule families described in the original expert system report.
+                      The output evaluates every combination of selected species, provides a numerical compatibility score
+                      on a scale of 0-100, and classifies a pair as compatible or incompatible using the report’s scoring approach.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-5">
@@ -623,10 +636,10 @@ export function ShowcaseApp() {
 
                 <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
                   <CardHeader>
-                    <CardTitle className="text-2xl text-slate-950">Tank-level warnings</CardTitle>
+                    <CardTitle className="text-2xl text-slate-950">Tank Constraints</CardTitle>
                     <CardDescription className="text-base leading-7 text-slate-600">
-                      These warnings are separate from pair compatibility, which helps distinguish fish conflicts from
-                      husbandry problems.
+                      These checks generate tank-level warnings rather than fish combination penalties, because they affect
+                      the overall setup instead of only a single pairing.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -655,9 +668,10 @@ export function ShowcaseApp() {
 
                 <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
                   <CardHeader>
-                    <CardTitle className="text-2xl text-slate-950">Pairwise analysis</CardTitle>
+                    <CardTitle className="text-2xl text-slate-950">Pairwise Compatibility Analysis</CardTitle>
                     <CardDescription className="text-base leading-7 text-slate-600">
-                      Every unique fish pairing is scored from 0 to 100 with explicit reasons attached.
+                      Every unique pairing is evaluated using cumulative penalties across water parameters, temperament,
+                      size ratio, special domain rules, and tank-related checks.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -716,14 +730,14 @@ export function ShowcaseApp() {
           </TabsContent>
 
           <TabsContent value="presets" className="space-y-6">
-            <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
-              <CardHeader>
-                <CardTitle className="text-2xl text-slate-950">Preset evaluation cases</CardTitle>
-                <CardDescription className="text-base leading-7 text-slate-600">
-                  These scenarios are adapted from the project’s broader validation set and designed to show compatible,
-                  incompatible, borderline, and warning-heavy outcomes.
-                </CardDescription>
-              </CardHeader>
+              <Card className="border-slate-200/70 bg-white/80 shadow-sm backdrop-blur">
+                <CardHeader>
+                  <CardTitle className="text-2xl text-slate-950">Evaluation Method</CardTitle>
+                  <CardDescription className="text-base leading-7 text-slate-600">
+                    Our test cases were designed to evaluate the system off fish stocking scenarios across clearly
+                    compatible, clearly incompatible, borderline, and edge or outlier categories.
+                  </CardDescription>
+                </CardHeader>
               <CardContent className="grid gap-4 lg:grid-cols-2">
                 {presetScenarios.map((preset) => (
                   <div
@@ -770,9 +784,10 @@ export function ShowcaseApp() {
               <CardHeader>
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div>
-                    <CardTitle className="text-2xl text-slate-950">Species atlas</CardTitle>
+                    <CardTitle className="text-2xl text-slate-950">Domain Knowledge Acquisition</CardTitle>
                     <CardDescription className="text-base leading-7 text-slate-600">
-                      Browse the fish knowledge base, then drop any species straight into the tank builder.
+                      Domain knowledge was acquired from established aquarist sources such as PetCo, Aqueon, and
+                      SeriouslyFish, then curated into a structured fish knowledge base.
                     </CardDescription>
                   </div>
                   <div className="relative w-full lg:max-w-sm">
@@ -867,9 +882,10 @@ export function ShowcaseApp() {
                   <BarChart3 className="size-5" />
                 </span>
                 <div>
-                  <CardTitle className="text-2xl text-slate-950">Validation evidence</CardTitle>
+                  <CardTitle className="text-2xl text-slate-950">Results</CardTitle>
                   <CardDescription className="text-base leading-7 text-slate-600">
-                    The original project report validated the expert system on 50 curated scenarios.
+                    The evaluation metric for this project was strictly based on system accuracy, with a target of 95%
+                    or higher and an achieved result of 100%.
                   </CardDescription>
                 </div>
               </div>
@@ -877,16 +893,16 @@ export function ShowcaseApp() {
             <CardContent className="space-y-5">
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                  <p className="text-sm font-medium text-slate-500">Accuracy</p>
+                  <p className="text-sm font-medium text-slate-500">Target Accuracy</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">95%</p>
+                </div>
+                <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
+                  <p className="text-sm font-medium text-slate-500">Achieved Accuracy</p>
                   <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">100%</p>
                 </div>
                 <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                  <p className="text-sm font-medium text-slate-500">Scenario groups</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">4</p>
-                </div>
-                <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
-                  <p className="text-sm font-medium text-slate-500">Inference style</p>
-                  <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Forward chaining</p>
+                  <p className="text-sm font-medium text-slate-500">False Positives / Negatives</p>
+                  <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">0 / 0</p>
                 </div>
               </div>
 
@@ -897,9 +913,13 @@ export function ShowcaseApp() {
                     alt="Accuracy by test category chart"
                     width={1100}
                     height={700}
-                    className="h-auto w-full"
+                  className="h-auto w-full"
                   />
                 </div>
+                <p className="rounded-[1.75rem] border border-slate-200/70 bg-slate-50 px-5 py-4 text-sm leading-7 text-slate-600">
+                  The score distribution shows compatible pairs clustering in the higher ranges while incompatible pairs
+                  cluster below the compatibility threshold, giving a clean separation around the score boundary.
+                </p>
                 <div className="overflow-hidden rounded-[1.75rem] border border-slate-200/70 bg-white shadow-sm">
                   <Image
                     src="/confusion-matrix.png"
@@ -920,9 +940,10 @@ export function ShowcaseApp() {
                   <BookOpen className="size-5" />
                 </span>
                 <div>
-                  <CardTitle className="text-2xl text-slate-950">Rulebook at a glance</CardTitle>
+                  <CardTitle className="text-2xl text-slate-950">AI Method and Tools</CardTitle>
                   <CardDescription className="text-base leading-7 text-slate-600">
-                    The browser version mirrors the main reasoning dimensions from the Python expert system.
+                    The problem domain is governed by explicit, categorical rules, making a rule-based expert system a
+                    suitable AI method for this project.
                   </CardDescription>
                 </div>
               </div>
@@ -932,37 +953,41 @@ export function ShowcaseApp() {
                 <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <Waves className="size-4 text-sky-600" />
-                    Water overlap
+                    Water Parameter Overlap
                   </div>
                   <p className="mt-2 text-sm leading-7 text-slate-600">
-                    pH and temperature ranges are compared to ensure both fish can share one stable environment.
+                    We calculate the overlap of tolerable pH and temperature ranges between fish pairs and apply penalties
+                    when those overlaps are missing or too narrow.
                   </p>
                 </div>
                 <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <Fish className="size-4 text-emerald-600" />
-                    Behaviour fit
+                    Temperament Compatibility
                   </div>
                   <p className="mt-2 text-sm leading-7 text-slate-600">
-                    Temperament categories help flag bullying, stress, and aggressive territorial behaviour.
+                    Peaceful, semi-aggressive, and aggressive fish combinations are penalised according to the risk of
+                    stress, bullying, or aggression.
                   </p>
                 </div>
                 <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <Database className="size-4 text-amber-600" />
-                    Tank constraints
+                    Tank Constraints
                   </div>
                   <p className="mt-2 text-sm leading-7 text-slate-600">
-                    Minimum litres, live pH, live temperature, and schooling counts are checked independently.
+                    Minimum tank size, live pH, live temperature, and schooling requirements generate warnings about the
+                    overall aquarium setup.
                   </p>
                 </div>
                 <div className="rounded-3xl border border-slate-200/70 bg-slate-50 p-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <TriangleAlert className="size-4 text-rose-500" />
-                    Special heuristics
+                    Special Domain Rules
                   </div>
                   <p className="mt-2 text-sm leading-7 text-slate-600">
-                    Domain-specific knowledge handles Bettas, Oscars, Tiger Barbs, Angelfish, and cold-water mismatches.
+                    Behavioural quirks such as Betta aggression, Tiger Barb fin-nipping, and Angelfish predation are
+                    encoded as targeted rules on top of general compatibility checks.
                   </p>
                 </div>
               </div>
@@ -989,22 +1014,32 @@ export function ShowcaseApp() {
         <section className="rounded-[2rem] border border-slate-200/70 bg-slate-950 px-6 py-8 text-white shadow-[0_24px_80px_-24px_rgba(15,23,42,0.48)] sm:px-8">
           <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
             <div className="space-y-3">
-              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-300">Why this works</p>
-              <h2 className="text-3xl font-semibold tracking-tight">A showcase built for explanation, not just output.</h2>
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-300">Conclusion and future improvements</p>
+              <h2 className="text-3xl font-semibold tracking-tight">
+                By delivering this system as a web application, it eliminates the barrier to entry.
+              </h2>
               <p className="max-w-3xl text-base leading-8 text-slate-300">
-                Instead of returning a single yes or no answer, the app reveals the exact reasons behind each score. That
-                makes it much easier to demonstrate the expert system’s interpretability during presentation or assessment.
+                The gradual scoring mechanism provides a nuanced compatibility assessment instead of only a binary verdict,
+                which makes the system more useful for handling borderline cases and communicating risk to hobbyists.
+              </p>
+              <p className="max-w-3xl text-sm leading-7 text-slate-400">
+                Development acknowledged in the report includes Experta for the Python expert system, React, TypeScript,
+                Tailwind CSS, shadcn/ui, and GitHub Pages for the web application, together with knowledge-base sources
+                such as PetCo, Aqueon, and SeriouslyFish.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Badge className="rounded-full border-white/15 bg-white/10 px-4 py-2 text-white">
-                Transparent reasoning
+                Expand the knowledge base
               </Badge>
               <Badge className="rounded-full border-white/15 bg-white/10 px-4 py-2 text-white">
-                Responsive design
+                Add a fuzzy logic component
               </Badge>
               <Badge className="rounded-full border-white/15 bg-white/10 px-4 py-2 text-white">
-                GitHub Pages ready
+                User accounts and saved tanks
+              </Badge>
+              <Badge className="rounded-full border-white/15 bg-white/10 px-4 py-2 text-white">
+                Suggest alternative species
               </Badge>
             </div>
           </div>
